@@ -1,0 +1,24 @@
+# 阿里云 DashScope SDK
+dashscope>=1.25.0
+
+# 音频处理
+pydub>=0.25.0
+sounddevice>=0.4.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# WebRTC VAD (声学 VAD)
+webrtcvad>=2.0.0
+
+# 异步支持
+aiohttp>=3.9.0
+asyncio>=3.4.3
+
+# 日志
+loguru>=0.7.0
+
+# 配置管理
+python-dotenv>=1.0.0
+
+# 音频流处理
+soundfile>=0.12.0
