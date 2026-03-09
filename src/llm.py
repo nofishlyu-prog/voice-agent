@@ -15,7 +15,7 @@ from dashscope import MultiModalConversation
 class QwenOmniLLM:
     """Qwen 多模态 LLM (支持音频)"""
     
-    def __init__(self, api_key: str, model: str = "qwen3-omni-flash"):
+    def __init__(self, api_key: str, model: str = "qwen-omni-turbo"):
         self.api_key = api_key
         self.model = model
         dashscope.api_key = api_key

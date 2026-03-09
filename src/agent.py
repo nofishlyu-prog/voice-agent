@@ -38,7 +38,7 @@ class VoiceAgent:
         # 多模态 LLM (直接处理音频)
         self.llm = QwenOmniLLM(
             api_key=self.api_key,
-            model=os.getenv("LLM_MODEL", "qwen3-omni-flash")
+            model=os.getenv("LLM_MODEL", "qwen-omni-turbo")
         )
         
         # TTS
@@ -51,7 +51,7 @@ class VoiceAgent:
         if system_prompt:
             self.llm.set_system_prompt(system_prompt)
         
-        logger.info(f"VoiceAgent initialized: model={os.getenv('LLM_MODEL', 'qwen3-omni-flash')}")
+        logger.info(f"VoiceAgent initialized: model={os.getenv('LLM_MODEL', 'qwen-omni-turbo')}")
     
     async def chat(self, text: str) -> AsyncGenerator[tuple, None]:
         """文本对话"""

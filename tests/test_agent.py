@@ -19,7 +19,7 @@ logger.add(sys.stderr, level="INFO", format="<green>{time:HH:mm:ss}</green> | <l
 
 async def main():
     """测试智能体"""
-    logger.info("🧪 开始测试 Voice Agent (qwen3-omni-flash)...")
+    logger.info("🧪 开始测试 Voice Agent (qwen-omni-turbo)...")
     
     agent = VoiceAgent(
         system_prompt="你是悠悠，一个又霸气又酷的女孩子，说话简洁有趣。"
