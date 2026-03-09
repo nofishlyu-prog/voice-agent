@@ -1,7 +1,7 @@
 """
 全双工语音对话智能体
 支持实时打断、边听边说
-架构：声学 VAD + 语义 VAD → LLM → TTS (流式播放)
+架构：声学 VAD + 语义 VAD（LLM 判断打断意图）→ LLM → TTS (流式播放)
 """
 import asyncio
 import numpy as np
@@ -32,7 +32,6 @@ class AudioBuffer:
         """添加音频数据"""
         with self.lock:
             self.buffer.extend(audio_data)
-            # 限制缓冲区大小
             while len(self.buffer) > self.max_samples:
                 self.buffer.popleft()
     
@@ -54,7 +53,7 @@ class AudioBuffer:
 
 
 class FullDuplexVoiceAgent:
-    """全双工语音对话智能体 - 支持实时打断"""
+    """全双工语音对话智能体 - 支持基于意图的实时打断"""
     
     def __init__(self,
                  api_key: Optional[str] = None,
@@ -73,10 +72,10 @@ class FullDuplexVoiceAgent:
             aggressiveness=int(os.getenv("VAD_AGGRESSIVENESS", "2"))
         )
         
-        # 语义 VAD (用于判断是否说完)
+        # 语义 VAD (LLM 判断打断意图)
         self.semantic_vad = SemanticVAD(
             api_key=self.api_key,
-            threshold=float(os.getenv("SEMANTIC_VAD_THRESHOLD", "0.3"))
+            threshold=float(os.getenv("SEMANTIC_VAD_THRESHOLD", "0.5"))
         )
         
         # LLM
@@ -100,22 +99,15 @@ class FullDuplexVoiceAgent:
         self.is_listening = False
         self.interrupt_enabled = True
         self.audio_buffer = AudioBuffer(sample_rate=self.sample_rate)
-        
-        # 中断关键词
-        self.interrupt_keywords = [
-            "等等", "等一下", "停下", "停一下", "停",
-            "不要说了", "别说", "别说了",
-            "不对", "错了", "不是这样", "不是",
-            "取消", "停止", "闭嘴", "打断", "慢点", "重新说"
-        ]
+        self.current_response = ""
         
         logger.info(f"FullDuplexVoiceAgent initialized: model={os.getenv('LLM_MODEL', 'qwen3-omni-flash')}")
-        logger.info(f"Interrupt keywords: {len(self.interrupt_keywords)}")
+        logger.info(f"Interrupt detection: LLM-based intent judgment")
     
     def _check_interrupt(self, text: str) -> bool:
-        """检查是否包含打断关键词"""
+        """检查是否包含打断关键词（快速判断）"""
         text_lower = text.lower()
-        for keyword in self.interrupt_keywords:
+        for keyword in self.semantic_vad.interrupt_keywords:
             if keyword in text_lower:
                 logger.info(f"Interrupt keyword detected: {keyword}")
                 return True
@@ -135,6 +127,7 @@ class FullDuplexVoiceAgent:
             音频数据块
         """
         self.is_speaking = True
+        self.current_response = text
         
         try:
             async for chunk in self.tts.synthesize(text):
@@ -175,6 +168,58 @@ class FullDuplexVoiceAgent:
         yield ("speaking", "🔊 播放中...")
         async for audio_chunk in self._stream_tts_with_interrupt(full_response, interrupt_callback):
             yield ("audio", audio_chunk)
+    
+    async def _detect_user_speech(self) -> Optional[str]:
+        """
+        检测用户语音并识别内容（用于打断检测）
+        
+        Returns:
+            识别的文本，如果没有检测到语音则返回 None
+        """
+        # 检查缓冲区是否有足够的音频
+        if len(self.audio_buffer) < self.sample_rate * 0.5:  # 至少 0.5 秒
+            return None
+        
+        # 获取音频
+        audio_data = self.audio_buffer.get_all()
+        
+        # 声学 VAD 检测是否有人声
+        if len(audio_data) > 0:
+            is_speech = self.acoustic_vad.is_speech(audio_data.tobytes())
+            if not is_speech:
+                return None
+        
+        # TODO: 这里需要集成 ASR 来识别语音内容
+        # 目前简化处理：如果检测到语音，返回占位符
+        if len(audio_data) > self.sample_rate * 0.5:
+            logger.debug(f"User speech detected: {len(audio_data)} samples")
+            return "[user_speech]"  # 占位符，表示检测到用户语音
+        
+        return None
+    
+    async def _check_interrupt_intent(self) -> bool:
+        """
+        检查用户是否有打断意图
+        
+        Returns:
+            bool: 是否有打断意图
+        """
+        # 检测用户语音
+        user_text = await self._detect_user_speech()
+        
+        if not user_text:
+            return False
+        
+        # 使用语义 VAD 判断打断意图
+        has_intent = await self.semantic_vad.has_interrupt_intent(
+            text=user_text,
+            assistant_speaking=self.is_speaking
+        )
+        
+        if has_intent:
+            logger.info(f"Interrupt intent detected: {user_text}")
+        
+        return has_intent
     
     async def process_audio_realtime(self,
                                       audio_stream: AsyncGenerator[np.ndarray, None],
@@ -241,14 +286,16 @@ class FullDuplexVoiceAgent:
                     yield (event_type, data)
     
     def _check_user_interrupt(self) -> bool:
-        """检查用户是否正在说话（用于 TTS 播放时的打断）"""
+        """检查用户是否有打断行为（用于 TTS 播放时的打断）"""
         # 检查缓冲区是否有新的语音输入
         if len(self.audio_buffer) > self.sample_rate * 0.5:  # 超过 0.5 秒
             audio_data = self.audio_buffer.get_all()
             # 简单能量检测
             energy = np.sum(np.abs(audio_data.astype(float)))
             if energy > len(audio_data) * 500:  # 能量阈值
-                logger.info("User interrupt detected during TTS")
+                logger.info("User speech detected during TTS")
+                # TODO: 这里可以调用语义 VAD 判断是否有打断意图
+                # 目前简化处理：检测到语音就认为想打断
                 return True
         return False
     
