@@ -38,7 +38,7 @@ async def main():
 开场白：哈喽，我是悠悠～"""
     )
     
-    logger.info("🎙️ Voice Agent 启动！(qwen-omni-turbo)")
+    logger.info("🎙️ Voice Agent 启动！(qwen3-omni-flash)")
     print("\n👋 哈喽，我是悠悠～ 今天想聊点什么？\n")
     print("💡 输入 'quit' 退出，'clear' 清空历史\n")
     

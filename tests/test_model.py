@@ -22,9 +22,9 @@ async def test_text_chat():
     load_dotenv()
     
     api_key = os.getenv("DASHSCOPE_API_KEY")
-    model = os.getenv("LLM_MODEL", "qwen-omni-turbo")
+    model = os.getenv("LLM_MODEL", "qwen3-omni-flash")
     
-    logger.info(f"🧪 测试模型：{model} (qwen-omni-turbo)")
+    logger.info(f"🧪 测试模型：{model}")
     logger.info(f"API Key: {api_key[:10]}...")
     
     llm = QwenOmniLLM(api_key=api_key, model=model)
